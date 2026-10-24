@@ -236,6 +236,7 @@ final class DisplayModeController: ObservableObject {
                     unmirrored = await MirroredModeService.shared.restore(display: display)
                 }
                 if unmirrored {
+                    MirroredModeService.shared.forgetSaved(for: display)
                     success = await ResolutionService.shared.setDisplayMode(mode, for: displayID)
                     if !success {
                         try? await Task.sleep(nanoseconds: 200_000_000)
@@ -454,6 +455,8 @@ final class DisplayModeController: ObservableObject {
                     withAnimation { self.errorMessage = nil }
                 }
             } else {
+                // Before the soft-reconnect, whose arrival would put a saved mirror size back.
+                if !on { MirroredModeService.shared.forgetSaved(for: display) }
                 // The soft-reconnect blanks the display, which resigns the panel's key and
                 // would auto-close it, collapsing every expanded row. Suppress that so the
                 // panel stays on this display's Resolution section.

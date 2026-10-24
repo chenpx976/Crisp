@@ -207,6 +207,7 @@ final class PresetService: ObservableObject, @unchecked Sendable {
                 Self.log.info("display \(displayID): \(w)x\(h) hiDPI \(entry.isHiDPI ?? false), route \(String(describing: route), privacy: .public)")
                 switch route {
                 case .mode(let index):
+                    MirroredModeService.shared.forgetSaved(for: display)
                     let mode = display.availableModes[index]
                     let currentMode = display.currentDisplayMode
                     let alreadyActive = currentMode?.width == mode.width
