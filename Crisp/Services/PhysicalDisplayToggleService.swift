@@ -175,17 +175,18 @@ final class PhysicalDisplayToggleService: ObservableObject {
     }
 
     private func viewableActiveDisplays() -> [CGDirectDisplayID] {
+        ScreenCount.viewable(activeEntries()).map(\.id)
+    }
+
+    private func activeEntries() -> [ScreenCount.Entry] {
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
         guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [] }
         let virtual = VirtualDisplayService.shared
-        return ids.prefix(Int(count)).filter { id in
-            guard !virtual.isVirtualDisplay(id) else { return false }
-            // Filters out entries with no real panel behind them (macOS's post-blackout
-            // placeholder, or a re-enabled record whose hardware left). Issue #91.
-            // See docs/display-notes.md (phantomAwareActiveDisplayCount).
-            return DisplayPanelShape.hasPanel(vendor: CGDisplayVendorNumber(id), model: CGDisplayModelNumber(id))
+        return ids.prefix(Int(count)).map { id in
+            ScreenCount.Entry(id: id, isCrispVirtual: virtual.isVirtualDisplay(id), isBuiltin: CGDisplayIsBuiltin(id) == 1,
+                              vendor: CGDisplayVendorNumber(id), model: CGDisplayModelNumber(id))
         }
     }
 
@@ -194,14 +195,7 @@ final class PhysicalDisplayToggleService: ObservableObject {
     /// make the rescue fire, never hide a row or refuse a remembered disconnect.
     /// See docs/display-notes.md (phantomAwareActiveDisplayCount).
     private func phantomAwareActiveDisplayCount() -> Int {
-        let viewable = viewableActiveDisplays()
-        let externals = viewable.filter { CGDisplayIsBuiltin($0) != 1 }
-        let portCap = liveDisplayPortCount()
-        var onPort = externals.count
-        if let portCap, portCap < externals.count {
-            onPort = externals.filter { !Self.hasProductName($0) }.count
-        }
-        return PhantomPortCap.activeCount(offPort: viewable.count - onPort, onPort: onPort, portCap: portCap)
+        ScreenCount.phantomAwareCount(activeEntries(), portCap: liveDisplayPortCount(), hasProductName: Self.hasProductName)
     }
 
     /// Whether CoreDisplay still knows the display by name; empty for a #112 phantom or a
@@ -217,28 +211,24 @@ final class PhysicalDisplayToggleService: ObservableObject {
         return (info["DisplayProductName"] as? String)?.isEmpty == false
     }
 
-    /// Ports that can have a display behind them right now (DisplayPort/Thunderbolt hot-plug
-    /// detect or sink count). nil, not 0, when the machine exposes no port nodes at all: that
-    /// means the signal is unavailable, not that nothing is plugged in. An empty USB-C port
-    /// keeps only its CC node, which counts as present and never as asserted (#195).
+    /// Reads the port transport nodes; ScreenCount.portCap decides what they say.
     /// See docs/display-notes.md (liveDisplayPortCount).
     private func liveDisplayPortCount() -> Int? {
-        var nodes = 0, asserted = 0
+        var nodes: [ScreenCount.PortNode] = []
         for cls in ["IOPortTransportStateDisplayPort", "IOPortTransportStateCIO", "IOPortTransportStateCC"] {
             var it: io_iterator_t = 0
             guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(cls), &it) == KERN_SUCCESS else { continue }
             defer { IOObjectRelease(it) }
             while case let node = IOIteratorNext(it), node != 0 {
                 defer { IOObjectRelease(node) }
-                nodes += 1
                 let hpd = IORegistryEntryCreateCFProperty(node, "HPD_StateDescription" as CFString, kCFAllocatorDefault, 0)?
                     .takeRetainedValue() as? String
                 let sinks = IORegistryEntryCreateCFProperty(node, "SinkCount" as CFString, kCFAllocatorDefault, 0)?
                     .takeRetainedValue() as? Int ?? 0
-                if hpd == "High" || sinks > 0 { asserted += 1 }
+                nodes.append(ScreenCount.PortNode(hpd: hpd, sinkCount: sinks))
             }
         }
-        return nodes == 0 ? nil : asserted
+        return ScreenCount.portCap(nodes)
     }
 
     private func uuid(for displayID: CGDirectDisplayID) -> String {
