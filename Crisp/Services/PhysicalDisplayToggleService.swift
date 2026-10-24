@@ -185,9 +185,7 @@ final class PhysicalDisplayToggleService: ObservableObject {
             // Filters out entries with no real panel behind them (macOS's post-blackout
             // placeholder, or a re-enabled record whose hardware left). Issue #91.
             // See docs/display-notes.md (phantomAwareActiveDisplayCount).
-            let vendor = CGDisplayVendorNumber(id), model = CGDisplayModelNumber(id)
-            let hasNoPanel = vendor == 0 || model == 0 || vendor > 0xFFFF || model > 0xFFFF
-            return !hasNoPanel
+            return DisplayPanelShape.hasPanel(vendor: CGDisplayVendorNumber(id), model: CGDisplayModelNumber(id))
         }
     }
 
