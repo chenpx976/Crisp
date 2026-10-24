@@ -1,10 +1,12 @@
 import Foundation
 import CoreGraphics
+import os.log
 
 /// Manages display configuration presets: save, load, and one-click apply.
 @MainActor
 final class PresetService: ObservableObject, @unchecked Sendable {
     static let shared = PresetService()
+    private static let log = Logger(subsystem: "com.crisp.app", category: "preset")
 
     @Published var presets: [DisplayPreset] = []
     @Published var isApplying: Bool = false
@@ -198,15 +200,14 @@ final class PresetService: ObservableObject, @unchecked Sendable {
 
             // Resolution applies only when the preset includes it (width present); the
             // built-in is driven too, resolving to the alreadyActive no-op if unchanged.
-            if let w = entry.width, let h = entry.height {
-                let hiDPI = entry.isHiDPI ?? false
-                let targetMode = display.availableModes.first(where: {
-                    $0.width == w && $0.height == h && $0.isHiDPI == hiDPI
-                }) ?? display.availableModes.first(where: {
-                    $0.width == w && $0.height == h
-                })
-
-                if let mode = targetMode {
+            if let w = entry.width, let h = entry.height, let route = entry.resolutionRoute(
+                modes: display.availableModes.map { ($0.width, $0.height, $0.isHiDPI) },
+                mirrorStops: MirroredModeService.beyondCapStops(for: display)
+            ) {
+                Self.log.info("display \(displayID): \(w)x\(h) hiDPI \(entry.isHiDPI ?? false), route \(String(describing: route), privacy: .public)")
+                switch route {
+                case .mode(let index):
+                    let mode = display.availableModes[index]
                     let currentMode = display.currentDisplayMode
                     let alreadyActive = currentMode?.width == mode.width
                         && currentMode?.height == mode.height
@@ -225,11 +226,12 @@ final class PresetService: ObservableObject, @unchecked Sendable {
                             display.currentDisplayMode = mode
                         }
                     }
-                } else if hiDPI, MirroredModeService.beyondCapStops(for: display)
-                            .contains(where: { $0.width == w && $0.height == h }) {
+                case .mirror:
                     // A beyond-cap size (#65) never enumerates on the physical panel;
                     // mirror mode is the only route there.
                     await MirroredModeService.shared.apply(display: display, width: w, height: h)
+                case .unavailable:
+                    break
                 }
             }
 

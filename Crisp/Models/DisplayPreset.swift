@@ -109,3 +109,29 @@ extension DisplayPreset {
         return plan
     }
 }
+
+/// How a preset reaches its saved resolution on a display.
+enum PresetResolutionRoute: Equatable {
+    /// An index into the display's mode list.
+    case mode(Int)
+    /// A HiDPI size past the backing cap (#65): only the mirror virtual renders it.
+    case mirror
+    case unavailable
+}
+
+extension DisplayPresetEntry {
+    /// The saved kind first, then the #65 mirror for a HiDPI size past the cap, and only then
+    /// the same size in the other kind: a 1x twin is not the mode the preset saved (#232).
+    /// nil when the preset does not include resolution.
+    func resolutionRoute(modes: [(width: Int, height: Int, isHiDPI: Bool)],
+                         mirrorStops: [(width: Int, height: Int)]) -> PresetResolutionRoute? {
+        guard let w = width, let h = height else { return nil }
+        let hiDPI = isHiDPI ?? false
+        if let i = modes.firstIndex(where: { $0.width == w && $0.height == h && $0.isHiDPI == hiDPI }) {
+            return .mode(i)
+        }
+        if hiDPI, mirrorStops.contains(where: { $0.width == w && $0.height == h }) { return .mirror }
+        if let i = modes.firstIndex(where: { $0.width == w && $0.height == h }) { return .mode(i) }
+        return .unavailable
+    }
+}
