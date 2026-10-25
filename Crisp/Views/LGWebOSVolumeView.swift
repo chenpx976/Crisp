@@ -63,9 +63,14 @@ private struct LGWebOSConnectionStatus: View {
     @ObservedObject var controller: LGWebOSVolumeController
 
     var body: some View {
-        Text(verbatim: controller.status)
-            .font(.caption)
-            .foregroundStyle(controller.ready ? .green : .secondary)
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: controller.status)
+                .foregroundStyle(controller.ready ? .green : .secondary)
+            if let warning = controller.pairingWarning {
+                Text(verbatim: warning).foregroundStyle(.orange)
+            }
+        }
+        .font(.caption)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

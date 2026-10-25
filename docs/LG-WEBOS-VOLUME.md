@@ -20,8 +20,9 @@ made with the TV remote are reflected in Crisp. Mute uses the existing
 zero/restore behavior. Positive volume also unmutes a TV muted by its remote.
 The app remembers the display-to-IP mapping, stores the pairing key in macOS
 Keychain, subscribes to audio status, and reconnects every five seconds when
-the TV becomes unreachable. Rejected requests stop automatic retries; use
-**Pair Again** to discard the stored key and request fresh approval.
+the TV becomes unreachable or an audio command/subscription fails. Only
+registration rejection stops automatic retries; use **Pair Again** to
+discard the stored key and request fresh approval.
 **Disconnect** removes the display mapping and restores DDC probing; it keeps
 the key for a future connection. The TV's authorized-device list can revoke it.
 
@@ -60,3 +61,23 @@ python3 scripts/webos-control.py disconnect 2
 true` before changing volume. The `volume` response acknowledges queueing,
 not TV read-back; query status afterwards to check the subscribed state.
 The status exposes network error details without printing the pairing key.
+
+## Confirmation and Keychain behavior
+
+Slider and keyboard targets stay visible while waiting for TV read-back.
+Older volume notifications cannot overwrite a newer target. After two seconds
+without a matching notification, Crisp returns to the last confirmed TV
+volume and reports the timeout. New input restarts the deadline.
+
+Keychain operations use a background serial queue, including reads and
+deletion. Read/delete errors stop the attempted pairing operation and show
+an actionable warning. A failed save leaves the current TV connection usable,
+keeps its key in memory for reconnection, and displays a persistent warning
+that pairing may be needed after restart. The menu and CLI `warning` field
+expose this separately from normal connection status.
+
+Run `scripts/test-webos.sh` with full Xcode selected, or `make test` for the
+entire repository suite. The focused tests run the actual controller against
+in-memory sockets and a fake Keychain API. They cover delayed confirmations,
+timeouts, retryable errors, rejected pairing, cancellation, and Keychain
+read/update/add/delete outcomes without accessing real TV credentials.

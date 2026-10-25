@@ -33,7 +33,8 @@ enum LGWebOSControlHandler {
         }
         let controller = service.networkControllers[display.displayUUID]
         return encode(.init(ok: true, status: controller?.status ?? "Not configured",
-                            ready: controller?.ready ?? false, volume: controller?.confirmedVolume))
+                            ready: controller?.ready ?? false, volume: controller?.confirmedVolume,
+                            warning: controller?.pairingWarning))
     }
 
     private static func encode(_ response: LGWebOSControlResponse) -> Data {

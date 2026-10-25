@@ -1,95 +1,129 @@
 import Foundation
 import Combine
-import Security
-import CryptoKit
-
-/// LG TVs use a private CA. Accept only LG's known TV/issuer certificates,
-/// scoped to the explicit private IP, rather than disabling TLS validation globally.
-private final class LGWebOSTrust: NSObject, URLSessionDelegate {
-    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
-                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              LGWebOSProtocol.host(challenge.protectionSpace.host) != nil,
-              let trust = challenge.protectionSpace.serverTrust,
-              let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] else {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
-        let known = Set([
-            "e2bd6464d3f51c1b95b7697d9d6773c33d9412eba0299c568c34937d3fe68aa0",
-            "11c5b1c5907750abb9da2a6665ccce2bb288a583f45a3339e71f87bf2f808552"
-        ])
-        let anchors = chain.filter { certificate in
-            let digest = SHA256.hash(data: SecCertificateCopyData(certificate) as Data)
-            return known.contains(digest.map { String(format: "%02x", $0) }.joined())
-        }
-        // LG's certificate names do not match private IPs. Validate its chain
-        // against the pinned anchors using X.509 rather than hostname policy.
-        // Finding a known certificate in an otherwise invalid chain is insufficient.
-        SecTrustSetPolicies(trust, SecPolicyCreateBasicX509())
-        SecTrustSetAnchorCertificates(trust, anchors as CFArray)
-        SecTrustSetAnchorCertificatesOnly(trust, true)
-        let matches = !anchors.isEmpty && SecTrustEvaluateWithError(trust, nil)
-        completionHandler(matches ? .useCredential : .cancelAuthenticationChallenge,
-                          matches ? URLCredential(trust: trust) : nil)
-    }
-}
 
 @MainActor
 final class LGWebOSVolumeController: ObservableObject {
     @Published private(set) var status = String(localized: "Not connected")
     @Published private(set) var ready = false
-    /// Last subscribed TV read-back; never the slider's optimistic target.
     @Published private(set) var confirmedVolume: Double?
+    @Published private(set) var pairingWarning: String?
     let host: String
     var onVolume: ((Double) -> Void)?
     var onReady: ((Bool) -> Void)?
-    private var socket: URLSessionWebSocketTask?
-    private var session: URLSession?
+    private let keyStore: any LGWebOSKeyStore
+    private let makeSocket: @MainActor () -> any LGWebOSSocket
+    private let retryDelay: Duration
+    private let confirmationTimeout: Duration
+    private var socket: (any LGWebOSSocket)?
+    private var connectionID: UUID?
+    private var generation = UUID()
     private var worker: Task<Void, Never>?
     private var writer: Task<Void, Never>?
+    private var writerID = UUID()
+    private var settlement: Task<Void, Never>?
+    private var keyTask: Task<Void, Never>?
     private var pending: Int?
+    private var target: Int?
+    private var revision = UUID()
     private var muted = false
-    private var lastLevel = 0.0
     private var commandID = 0
-    private var writing = false
-    private var rejected = false
+    private var cachedKey: String?
 
-    init(host: String) { self.host = host }
-
-    func connect() {
-        disconnect()
-        rejected = false
-        worker = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                do { try await self.runConnection() } catch {
-                    guard !Task.isCancelled else { return }
-                    self.status = String(localized: "Connection lost. Retrying in 5 seconds.")
-                        + " " + error.localizedDescription
-                }
-                self.setReady(false)
-                self.socket?.cancel(with: .goingAway, reason: nil)
-                self.session?.invalidateAndCancel()
-                if self.rejected { return }
-                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+    private enum ConnectionError: LocalizedError {
+        case pairingRejected
+        case requestFailed(String)
+        var errorDescription: String? {
+            switch self {
+            case .pairingRejected: return String(localized: "TV rejected the request. Disconnect and pair again.")
+            case .requestFailed(let detail): return detail
             }
         }
     }
 
+    init(host: String, keyStore: any LGWebOSKeyStore = LGWebOSKeychainStore(),
+         retryDelay: Duration = .seconds(5), confirmationTimeout: Duration = .seconds(2),
+         makeSocket: (@MainActor () -> any LGWebOSSocket)? = nil) {
+        self.host = host
+        self.keyStore = keyStore
+        self.retryDelay = retryDelay
+        self.confirmationTimeout = confirmationTimeout
+        self.makeSocket = makeSocket ?? { LGWebOSTransport(host: host) }
+    }
+
+    func connect() {
+        disconnect()
+        startConnection()
+    }
+
+    private func startConnection() {
+        let generation = generation
+        worker = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let key = try await self.keyStore.read(host: self.host)
+                guard self.isCurrent(generation) else { return }
+                self.cachedKey = key
+            } catch {
+                guard self.isCurrent(generation) else { return }
+                self.status = String(localized: "Unable to read TV pairing. Check Keychain access.")
+                self.pairingWarning = error.localizedDescription
+                return // Do not silently start a fresh pairing after a denied key read.
+            }
+            while self.isCurrent(generation) {
+                let socket = self.makeSocket()
+                self.socket = socket
+                let connectionID = UUID()
+                self.connectionID = connectionID
+                var retry = true
+                do { try await self.runConnection(socket, generation: generation, connectionID: connectionID) }
+                catch {
+                    guard self.isCurrent(generation) else { return }
+                    if case ConnectionError.pairingRejected = error {
+                        self.status = error.localizedDescription
+                        retry = false
+                    } else {
+                        self.status = String(localized: "Connection lost. Retrying in 5 seconds.")
+                            + " " + error.localizedDescription
+                    }
+                }
+                guard self.isCurrent(generation) else { return }
+                self.cancelWrites()
+                self.setReady(false)
+                socket.close()
+                self.socket = nil
+                self.connectionID = nil
+                guard retry else { return }
+                do { try await Task.sleep(for: self.retryDelay) } catch { return }
+            }
+        }
+    }
+
+    private func isCurrent(_ generation: UUID) -> Bool { self.generation == generation && !Task.isCancelled }
+
     func disconnect() {
+        generation = UUID()
         worker?.cancel()
         worker = nil
-        writer?.cancel()
-        writer = nil
-        pending = nil
-        writing = false
-        socket?.cancel(with: .goingAway, reason: nil)
+        keyTask?.cancel()
+        keyTask = nil
+        cancelWrites()
+        socket?.close()
         socket = nil
-        session?.invalidateAndCancel()
-        session = nil
+        connectionID = nil
+        cachedKey = nil
+        pairingWarning = nil
         setReady(false)
         status = String(localized: "Not connected")
+    }
+
+    private func cancelWrites() {
+        writerID = UUID()
+        writer?.cancel()
+        writer = nil
+        settlement?.cancel()
+        settlement = nil
+        pending = nil
+        target = nil
     }
 
     private func setReady(_ value: Bool) {
@@ -100,25 +134,45 @@ final class LGWebOSVolumeController: ObservableObject {
 
     func pairAgain() {
         disconnect()
-        SecItemDelete(keyQuery as CFDictionary)
-        connect()
+        let generation = generation
+        keyTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.keyStore.delete(host: self.host)
+                guard self.isCurrent(generation) else { return }
+                self.keyTask = nil
+                self.startConnection()
+            } catch {
+                guard self.isCurrent(generation) else { return }
+                self.status = String(localized: "Unable to remove TV pairing. Check Keychain access.")
+                self.pairingWarning = error.localizedDescription
+            }
+        }
     }
 
-    private func runConnection() async throws {
-        guard let url = URL(string: "wss://\(host):3001") else { return }
+    private func persistKey(_ key: String, generation: UUID) {
+        cachedKey = key // Reconnect this session even if persistence is unavailable.
+        keyTask?.cancel()
+        keyTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.keyStore.save(key, host: self.host)
+                guard self.isCurrent(generation) else { return }
+                self.pairingWarning = nil
+            } catch {
+                guard self.isCurrent(generation) else { return }
+                self.pairingWarning = String(localized: "TV pairing could not be saved. Pair again after restarting.")
+                    + " " + error.localizedDescription
+            }
+        }
+    }
+
+    private func runConnection(_ socket: any LGWebOSSocket, generation: UUID, connectionID: UUID) async throws {
         status = String(localized: "Connecting. Accept the request on your TV.")
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 60
-        let session = URLSession(configuration: configuration, delegate: LGWebOSTrust(), delegateQueue: nil)
-        self.session = session
-        let socket = session.webSocketTask(with: url)
-        self.socket = socket
-        socket.resume()
-        // Timeout a stalled handshake or an unanswered pairing prompt, but not a live subscription.
         let watchdog = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(60))
-            guard !Task.isCancelled, let self, !self.ready else { return }
-            socket.cancel(with: .goingAway, reason: nil)
+            do { try await Task.sleep(for: .seconds(60)) } catch { return }
+            guard let self, self.connectionID == connectionID, !self.ready else { return }
+            socket.close()
         }
         defer { watchdog.cancel() }
         let heartbeat = Task {
@@ -126,59 +180,73 @@ final class LGWebOSVolumeController: ObservableObject {
                 do { try await Task.sleep(for: .seconds(10)) } catch { return }
                 let timeout = Task {
                     do { try await Task.sleep(for: .seconds(10)) } catch { return }
-                    socket.cancel(with: .goingAway, reason: nil)
+                    socket.close()
                 }
-                socket.sendPing { error in
-                    timeout.cancel()
-                    if error != nil { socket.cancel(with: .goingAway, reason: nil) }
-                }
+                do { try await socket.ping() } catch { socket.close() }
+                timeout.cancel()
             }
         }
         defer { heartbeat.cancel() }
-        try await send(LGWebOSProtocol.registration(key: readKey()), on: socket)
-        while !Task.isCancelled {
-            let message = try await socket.receive()
-            try Task.checkCancellation()
-            let data: Data
-            switch message {
-            case .string(let value): data = Data(value.utf8)
-            case .data(let value): data = value
-            @unknown default: continue
-            }
+        try await send(LGWebOSProtocol.registration(key: cachedKey), on: socket)
+        var registered = false
+        while isCurrent(generation) {
+            let data = try await socket.receive()
+            guard isCurrent(generation), self.connectionID == connectionID else { throw CancellationError() }
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
             let payload = json["payload"] as? [String: Any] ?? [:]
             if json["type"] as? String == "error" || payload["returnValue"] as? Bool == false {
-                status = String(localized: "TV rejected the request. Disconnect and pair again.")
-                setReady(false)
-                // Do not repeatedly prompt after the user rejects pairing.
-                rejected = true
-                return
+                // Only registration rejection is terminal. Command/subscription failures
+                // reconnect with the existing key rather than asking for fresh pairing.
+                if !registered || json["id"] as? String == "register" { throw ConnectionError.pairingRejected }
+                let detail = json["error"] as? String ?? payload["errorText"] as? String ?? "TV request failed"
+                throw ConnectionError.requestFailed(detail)
             }
             if json["type"] as? String == "registered" {
-                if let key = payload["client-key"] as? String { saveKey(key) }
+                registered = true
+                if let key = payload["client-key"] as? String { persistKey(key, generation: generation) }
                 try await send(["id": "volume", "type": "subscribe", "uri": "ssap://audio/getVolume"], on: socket)
             } else if json["id"] as? String == "volume", let volume = LGWebOSProtocol.volume(payload) {
-                lastLevel = volume.level
                 muted = volume.muted
-                confirmedVolume = muted ? 0 : lastLevel
+                let level = muted ? 0 : volume.level
+                confirmedVolume = level
                 status = String(localized: "Connected")
                 setReady(true)
-                if !writing && pending == nil { onVolume?(muted ? 0 : lastLevel) }
+                if let target, abs(level - Double(target)) < 0.5 {
+                    self.target = nil
+                    settlement?.cancel()
+                    settlement = nil
+                }
+                if target == nil { onVolume?(level) }
             }
         }
     }
 
-    /// Latest slider value wins. Writes are paced independently of the DDC bus.
+    /// Keep the optimistic target until matching TV read-back or a bounded timeout.
+    /// Pacing is independent of confirmation: continuous key presses still coalesce.
     func setVolume(_ value: Double) {
-        guard ready else { return }
-        pending = Int(max(0, min(100, value)).rounded())
+        guard ready, value.isFinite, let connectionID, let socket else { return }
+        let level = Int(max(0, min(100, value)).rounded())
+        pending = level
+        target = level
+        revision = UUID()
+        let revision = revision
+        settlement?.cancel()
+        settlement = Task { [weak self] in
+            guard let self else { return }
+            do { try await Task.sleep(for: self.confirmationTimeout) } catch { return }
+            guard self.connectionID == connectionID, self.revision == revision, self.target != nil else { return }
+            self.target = nil
+            self.status = String(localized: "TV did not confirm the requested volume.")
+            if let level = self.confirmedVolume { self.onVolume?(level) }
+        }
         guard writer == nil else { return }
+        writerID = UUID()
+        let writerID = writerID
         writer = Task { [weak self] in
             guard let self else { return }
-            defer { self.writer = nil; self.writing = false }
-            while let level = self.pending, let socket = self.socket, !Task.isCancelled {
+            defer { if self.writerID == writerID { self.writer = nil } }
+            while self.connectionID == connectionID, let level = self.pending, !Task.isCancelled {
                 self.pending = nil
-                self.writing = true
                 do {
                     if self.muted && level > 0 {
                         try await self.request("audio/setMute", payload: ["mute": false], on: socket)
@@ -186,50 +254,21 @@ final class LGWebOSVolumeController: ObservableObject {
                     try await self.request("audio/setVolume", payload: ["volume": level], on: socket)
                     try await Task.sleep(for: .milliseconds(80))
                 } catch {
-                    guard !Task.isCancelled else { return }
-                    self.setReady(false)
-                    socket.cancel(with: .goingAway, reason: nil)
+                    guard self.connectionID == connectionID, !Task.isCancelled else { return }
+                    socket.close() // The reader owns reconnect and state cleanup.
                     return
                 }
             }
-            if self.ready { self.onVolume?(self.muted ? 0 : self.lastLevel) }
         }
     }
 
-    private func request(_ uri: String, payload: [String: Any], on socket: URLSessionWebSocketTask) async throws {
+    private func request(_ uri: String, payload: [String: Any], on socket: any LGWebOSSocket) async throws {
         commandID += 1
         try await send(["id": "command-\(commandID)", "type": "request", "uri": "ssap://\(uri)", "payload": payload],
                        on: socket)
     }
 
-    private func send(_ message: [String: Any], on socket: URLSessionWebSocketTask) async throws {
-        let data = try JSONSerialization.data(withJSONObject: message)
-        try await socket.send(.string(String(decoding: data, as: UTF8.self)))
-    }
-
-    private var keyQuery: [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: "com.crisp.webos", kSecAttrAccount as String: host]
-    }
-
-    private func readKey() -> String? {
-        var query = keyQuery
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private func saveKey(_ key: String) {
-        let data = Data(key.utf8)
-        let result = SecItemUpdate(keyQuery as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if result == errSecItemNotFound {
-            var query = keyQuery
-            query[kSecValueData as String] = data
-            query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            SecItemAdd(query as CFDictionary, nil)
-        }
+    private func send(_ message: [String: Any], on socket: any LGWebOSSocket) async throws {
+        try await socket.send(JSONSerialization.data(withJSONObject: message))
     }
 }

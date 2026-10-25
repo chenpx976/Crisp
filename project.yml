@@ -88,6 +88,9 @@ targets:
       - path: Crisp/Models/ScreenCount.swift
       - path: Crisp/Models/DDCVolumeMax.swift
       - path: Crisp/Models/LGWebOSProtocol.swift
+      - path: Crisp/Services/LGWebOSKeyStore.swift
+      - path: Crisp/Services/LGWebOSTransport.swift
+      - path: Crisp/Services/LGWebOSVolumeController.swift
       - path: Crisp/Models/EdgeCrossing.swift
       - path: Crisp/Models/DDCInputSource.swift
     settings:

@@ -1,6 +1,70 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Unable to read TV pairing. Check Keychain access.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取电视配对信息，请检查钥匙串访问权限。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取電視配對資訊，請檢查鑰匙圈存取權限。"
+          }
+        }
+      }
+    },
+    "Unable to remove TV pairing. Check Keychain access.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除电视配对信息，请检查钥匙串访问权限。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法刪除電視配對資訊，請檢查鑰匙圈存取權限。"
+          }
+        }
+      }
+    },
+    "TV pairing could not be saved. Pair again after restarting.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电视配对信息未能保存，重启后需要重新配对。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電視配對資訊無法儲存，重新啟動後需要重新配對。"
+          }
+        }
+      }
+    },
+    "TV did not confirm the requested volume.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电视未确认请求的音量，已恢复到实际音量。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電視未確認要求的音量，已恢復至實際音量。"
+          }
+        }
+      }
+    },
     "Pair Again": {
       "localizations": {
         "zh-Hans": {

@@ -19,4 +19,5 @@ struct LGWebOSControlResponse: Encodable {
     var ready: Bool?
     var volume: Double?
     var error: String?
+    var warning: String?
 }
