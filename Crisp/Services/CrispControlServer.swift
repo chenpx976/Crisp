@@ -127,6 +127,7 @@ final class CrispControlServer {
 
     private func reply(to request: Data) async -> Data {
         let managedDisplays = displayManager.displays
+        if let reply = LGWebOSControlHandler.reply(to: request, displays: managedDisplays) { return reply }
         let boostService = BrightnessBoostService.shared
         let displays = managedDisplays.map { display in
             let resolution = display.currentDisplayMode.map { mode in

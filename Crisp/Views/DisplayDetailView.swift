@@ -127,6 +127,7 @@ struct DetailTailBlock: View {
             SectionDivider()
 
             VolumeOverrideView(display: display)
+            LGWebOSVolumeView(display: display)
 
             // Above Extra Brightness: cause before effect (boost on an SDR
             // external switches HDR on).

@@ -11,7 +11,7 @@ struct VolumeOverrideView: View {
     @State private var isHovered = false
 
     var body: some View {
-        if !display.isBuiltin,
+        if !display.isBuiltin, VolumeService.shared.networkHost(for: display).isEmpty,
            !display.volumeSupported || VolumeService.shared.isForced(display) {
             HStack {
                 MenuItemIcon(systemName: "speaker.wave.2.fill", color: .blue, active: display.volumeSupported)

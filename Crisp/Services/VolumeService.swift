@@ -14,6 +14,30 @@ final class VolumeService: ObservableObject {
     static let shared = VolumeService()
     private init() {}
 
+    @Published private(set) var networkControllers: [String: LGWebOSVolumeController] = [:]
+
+    func networkHost(for display: DisplayInfo) -> String {
+        UserDefaults.standard.string(forKey: "crisp.webos.host.\(display.displayUUID)") ?? ""
+    }
+
+    func configureNetwork(host: String, for display: DisplayInfo) {
+        let uuid = display.displayUUID
+        networkControllers.removeValue(forKey: uuid)?.disconnect()
+        pending.removeValue(forKey: display.displayID)
+        UserDefaults.standard.set(host.isEmpty ? nil : host, forKey: "crisp.webos.host.\(uuid)")
+        display.volumeSupported = rememberedCapable.contains(uuid) || forcedCapable.contains(uuid)
+        guard !host.isEmpty else { refreshVolume(for: display); return }
+        let controller = LGWebOSVolumeController(host: host)
+        controller.onVolume = { [weak display] value in display?.volume = value }
+        controller.onReady = { [weak display] ready in
+            // A network-configured TV only consumes media keys while reachable.
+            display?.volumeSupported = ready
+        }
+        networkControllers[uuid] = controller
+        boundIDs[uuid] = display.displayID
+        controller.connect()
+    }
+
     private static let log = Logger(subsystem: "com.crisp.app", category: "volume")
 
     /// DDC max volume per display (usually 100), from the probe read through
@@ -64,7 +88,16 @@ final class VolumeService: ObservableObject {
     func invalidate(for displayID: CGDirectDisplayID) {
         ddcMax.removeValue(forKey: displayID)
         preMuteVolume.removeValue(forKey: displayID)
+        pending.removeValue(forKey: displayID)
+        // Rebind callbacks to the new DisplayInfo after a topology refresh.
+        for (uuid, controller) in networkControllers where boundIDs[uuid] == displayID {
+            controller.disconnect()
+            networkControllers.removeValue(forKey: uuid)
+            boundIDs.removeValue(forKey: uuid)
+        }
     }
+
+    private var boundIDs: [String: CGDirectDisplayID] = [:]
 
     // MARK: - Probe
 
@@ -73,6 +106,14 @@ final class VolumeService: ObservableObject {
     /// re-run on every refresh; a monitor answering late heals next pass.
     func refreshVolume(for display: DisplayInfo) {
         guard !display.isBuiltin else { return }
+        let host = networkHost(for: display)
+        if !host.isEmpty {
+            if networkControllers[display.displayUUID] == nil {
+                configureNetwork(host: host, for: display)
+            }
+            boundIDs[display.displayUUID] = display.displayID
+            return
+        }
         // Seed from memory (or the user's force override) so a failed probe
         // can't hide the feature; the read below still adopts the monitor's
         // current level whenever it works.
@@ -83,6 +124,7 @@ final class VolumeService: ObservableObject {
         let uuid = display.displayUUID
         DDCService.shared.readAsync(displayID: id, command: DDCService.volumeVCP) { result in
             Task { @MainActor in
+                guard self.networkHost(for: display).isEmpty else { return }
                 guard let result else {
                     // Only while the feature is hidden: a remembered or forced
                     // display failing a probe is the DDC layer's line to log.
@@ -119,6 +161,10 @@ final class VolumeService: ObservableObject {
     func setVolume(_ percent: Double, for display: DisplayInfo) {
         let clamped = max(0.0, min(100.0, percent))
         display.volume = clamped
+        if let controller = networkControllers[display.displayUUID] {
+            controller.setVolume(clamped)
+            return
+        }
         pending[display.displayID] = clamped
         pump(for: display.displayID)
     }
