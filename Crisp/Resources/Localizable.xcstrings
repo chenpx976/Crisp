@@ -1,6 +1,470 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Authorize OLED Writes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授权 OLED 亮度写入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授權 OLED 亮度寫入"
+          }
+        }
+      }
+    },
+    "LG's signed remote profile also requests TV app and notification access.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LG 签名遥控权限包还包含电视应用和通知访问权限。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LG 簽章遙控權限套件另包含電視應用程式與通知存取權限。"
+          }
+        }
+      }
+    },
+    "LG webOS TV Controls": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LG webOS 电视控制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LG webOS 電視控制"
+          }
+        }
+      }
+    },
+    "Enable OLED, HDMI and Power Controls": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用 OLED、HDMI 和电源控制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "啟用 OLED、HDMI 與電源控制"
+          }
+        }
+      }
+    },
+    "Approve the expanded pairing request on the TV.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在电视上允许扩展权限配对。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請在電視上允許擴充權限配對。"
+          }
+        }
+      }
+    },
+    "OLED pixel brightness (TV)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OLED 像素亮度（电视）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OLED 像素亮度（電視）"
+          }
+        }
+      }
+    },
+    "Changes OLED pixel brightness in the TV, separately from software dimming.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接调整电视的 OLED 像素亮度，与软件调暗独立。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接調整電視的 OLED 像素亮度，與軟體調暗獨立。"
+          }
+        }
+      }
+    },
+    "Refresh TV Controls": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新电视状态"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新整理電視狀態"
+          }
+        }
+      }
+    },
+    "HDMI Quick Switch": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDMI 快速切换"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDMI 快速切換"
+          }
+        }
+      }
+    },
+    "Mac HDMI Input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 所在的 HDMI"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 所在的 HDMI"
+          }
+        }
+      }
+    },
+    "Choose Mac Input": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择 Mac 输入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 Mac 輸入"
+          }
+        }
+      }
+    },
+    "TV MAC address": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电视 MAC 地址"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電視 MAC 位址"
+          }
+        }
+      }
+    },
+    "Save MAC": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存 MAC"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存 MAC"
+          }
+        }
+      }
+    },
+    "Enter a valid TV MAC address.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入有效的电视 MAC 地址。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請輸入有效的電視 MAC 位址。"
+          }
+        }
+      }
+    },
+    "Enable network wake / Turn on via Wi-Fi on the TV before using power sync.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用电源联动前，请在电视上启用网络唤醒／通过 Wi-Fi 开机。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用電源連動前，請在電視上啟用網路喚醒／透過 Wi-Fi 開機。"
+          }
+        }
+      }
+    },
+    "Sync TV with Mac Sleep and Wake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随 Mac 睡眠和唤醒"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨 Mac 睡眠與喚醒"
+          }
+        }
+      }
+    },
+    "Switch to Mac HDMI on Wake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "唤醒后切回 Mac HDMI"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "喚醒後切回 Mac HDMI"
+          }
+        }
+      }
+    },
+    "Wake TV": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "唤醒电视"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "喚醒電視"
+          }
+        }
+      }
+    },
+    "TV Standby": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电视待机"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電視待機"
+          }
+        }
+      }
+    },
+    "Standby only applies while the TV is on the selected Mac HDMI input.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅当电视正在显示选定的 Mac HDMI 输入时，才让电视待机。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅當電視正在顯示選定的 Mac HDMI 輸入時，才讓電視待機。"
+          }
+        }
+      }
+    },
+    "TV did not provide OLED pixel brightness.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电视未返回 OLED 像素亮度。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電視未回傳 OLED 像素亮度。"
+          }
+        }
+      }
+    },
+    "TV did not confirm the requested OLED brightness.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电视未确认新的 OLED 像素亮度。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電視未確認新的 OLED 像素亮度。"
+          }
+        }
+      }
+    },
+    "TV input change was not confirmed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未确认电视输入源已切换。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未確認電視輸入來源已切換。"
+          }
+        }
+      }
+    },
+    "HDMI control": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDMI 控制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HDMI 控制"
+          }
+        }
+      }
+    },
+    "OLED brightness": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OLED 亮度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OLED 亮度"
+          }
+        }
+      }
+    },
+    "Power control": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电源控制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電源控制"
+          }
+        }
+      }
+    },
+    "Network wake": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络唤醒"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "網路喚醒"
+          }
+        }
+      }
+    },
+    "Set the Mac HDMI input and TV MAC address first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先设置 Mac HDMI 输入和电视 MAC 地址。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請先設定 Mac HDMI 輸入與電視 MAC 位址。"
+          }
+        }
+      }
+    },
+    "TV did not wake. Enable network wake on the TV.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电视未唤醒，请检查电视的网络唤醒设置。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電視未喚醒，請檢查電視的網路喚醒設定。"
+          }
+        }
+      }
+    },
     "Unable to read TV pairing. Check Keychain access.": {
       "localizations": {
         "zh-Hans": {

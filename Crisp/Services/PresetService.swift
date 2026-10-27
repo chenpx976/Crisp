@@ -68,6 +68,7 @@ final class PresetService: ObservableObject, @unchecked Sendable {
     func commitShortcut(_ shortcut: KeyboardShortcut?, forPresetID id: UUID) {
         guard let index = presets.firstIndex(where: { $0.id == id }) else { return }
         if let shortcut {
+            LGWebOSPowerService.shared.clearShortcuts(matching: shortcut)
             for i in presets.indices where presets[i].id != id
                 && presets[i].shortcut?.sameKeys(as: shortcut) == true {
                 presets[i].shortcut = nil

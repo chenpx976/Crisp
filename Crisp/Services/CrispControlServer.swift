@@ -127,7 +127,7 @@ final class CrispControlServer {
 
     private func reply(to request: Data) async -> Data {
         let managedDisplays = displayManager.displays
-        if let reply = LGWebOSControlHandler.reply(to: request, displays: managedDisplays) { return reply }
+        if let reply = await LGWebOSControlHandler.reply(to: request, displays: managedDisplays) { return reply }
         let boostService = BrightnessBoostService.shared
         let displays = managedDisplays.map { display in
             let resolution = display.currentDisplayMode.map { mode in
@@ -271,6 +271,15 @@ final class CrispControlServer {
         guard let display = managedDisplays.first(where: { $0.displayID == change.displayID }),
               let entry = listed.first(where: { $0.id == change.displayID }) else {
             return CrispControlModel.encode(.failure("display not found"))
+        }
+        if let controller = VolumeService.shared.networkControllers[display.displayUUID] {
+            guard let input = LGWebOSDeviceProtocol.input(userValue: change.input) else {
+                return CrispControlModel.encode(.failure("choose HDMI 1, HDMI 2, HDMI 3 or HDMI 4 for this LG TV"))
+            }
+            do {
+                try await controller.switchTVInput(input)
+                return CrispControlModel.encode(.success(display: entry))
+            } catch { return CrispControlModel.encode(.failure(error.localizedDescription)) }
         }
         guard service.isAvailable(for: display) else { return CrispControlModel.encode(.failure(Self.noDDC)) }
         guard let value = DDCInputSource.value(from: change.input) else {

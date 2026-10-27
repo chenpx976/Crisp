@@ -22,6 +22,7 @@ final class VolumeService: ObservableObject {
 
     func configureNetwork(host: String, for display: DisplayInfo) {
         let uuid = display.displayUUID
+        LGWebOSPowerService.shared.setHost(host, for: uuid, displayID: display.displayID)
         networkControllers.removeValue(forKey: uuid)?.disconnect()
         pending.removeValue(forKey: display.displayID)
         UserDefaults.standard.set(host.isEmpty ? nil : host, forKey: "crisp.webos.host.\(uuid)")

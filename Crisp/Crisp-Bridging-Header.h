@@ -11,6 +11,12 @@
 
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <IOKit/IOMessage.h>
+
+// IOMessage's function-like macros are not imported by Swift.
+static const natural_t CrispIOCanSystemSleep = kIOMessageCanSystemSleep;
+static const natural_t CrispIOSystemWillSleep = kIOMessageSystemWillSleep;
+static const natural_t CrispIOSystemHasPoweredOn = kIOMessageSystemHasPoweredOn;
 
 // MARK: - CGVirtualDisplay Private API (macOS 14+)
 

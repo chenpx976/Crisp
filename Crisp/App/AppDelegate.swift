@@ -165,6 +165,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         setupStartupBehavior()
+        LGWebOSPowerService.shared.start()
         setupStatusItem()
 
         // Re-anchor the open panel when screens change: switching the main

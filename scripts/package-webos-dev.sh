@@ -5,9 +5,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 APP="$ROOT/build/Crisp LG.app"
 test -f Crisp-bin
-test -d /Applications/Crisp.app
+CRISP_TEMPLATE=/Applications/Crisp.app
+if ! test -d "$CRISP_TEMPLATE"; then CRISP_TEMPLATE="/Applications/Crisp LG.app"; fi
+test -d "$CRISP_TEMPLATE"
 mkdir -p build/localizations
-ditto /Applications/Crisp.app "$APP"
+ditto "$CRISP_TEMPLATE" "$APP"
 cp Crisp-bin "$APP/Contents/MacOS/Crisp"
 python3 - "$APP/Contents/Info.plist" <<'PY'
 import plistlib, sys
@@ -19,7 +21,7 @@ info.update({
     'CFBundleName': 'Crisp LG',
     'CFBundleDisplayName': 'Crisp LG',
     'CFBundleShortVersionString': '1.7.1-webos-dev',
-    'NSLocalNetworkUsageDescription': 'Connect to your LG TV to control speaker volume.',
+    'NSLocalNetworkUsageDescription': 'Connect to your LG TV to control volume, OLED brightness, HDMI inputs and power.',
     'SUEnableAutomaticChecks': False,
     'SUAutomaticallyUpdate': False,
 })

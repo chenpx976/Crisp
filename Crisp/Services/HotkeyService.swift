@@ -19,6 +19,7 @@ final class HotkeyService {
         case preset(UUID)
         case hidpiToggle
         case brightness(up: Bool)
+        case lgInput(host: String, input: String)
     }
 
     private var handlerRef: EventHandlerRef?
@@ -71,6 +72,13 @@ final class HotkeyService {
         }
         if let shortcut = SettingsService.shared.brightnessDownShortcut {
             register(shortcut, for: .brightness(up: false))
+        }
+        for host in LGWebOSPowerService.shared.configuredHosts {
+            let preferences = LGWebOSDevicePreferences.load(host: host)
+            guard preferences.extendedControls else { continue }
+            for (input, shortcut) in preferences.inputShortcuts where LGWebOSDeviceProtocol.isHDMI(input) {
+                register(shortcut, for: .lgInput(host: host, input: input))
+            }
         }
         Self.log.info("synced: \(self.registrations.count) hotkey(s) registered")
     }
@@ -136,6 +144,11 @@ final class HotkeyService {
         case .brightness(let up):
             BrightnessKeyService.shared.adjustFromShortcut(up: up)
             startRepeat(up: up)
+        case .lgInput(let host, let input):
+            Task {
+                do { try await LGWebOSPowerService.shared.switchInput(host: host, input: input) }
+                catch { Self.log.notice("LG input shortcut failed: \(error.localizedDescription, privacy: .public)") }
+            }
         case nil:
             break
         }

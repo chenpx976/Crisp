@@ -20,6 +20,7 @@ let suite = XCTestSuite(name: "LG webOS regression tests")
 suite.addTest(LGWebOSProtocolTests.defaultTestSuite)
 suite.addTest(LGWebOSVolumeControllerTests.defaultTestSuite)
 suite.addTest(LGWebOSKeyStoreTests.defaultTestSuite)
+suite.addTest(LGWebOSDeviceTests.defaultTestSuite)
 suite.run()
 exit(suite.testRun?.totalFailureCount == 0 ? 0 : 1)
 SWIFT
@@ -29,7 +30,10 @@ xcrun swiftc -swift-version 6 -warnings-as-errors -module-cache-path build/Modul
     -Xlinker -rpath -Xlinker "$CRISP_TEST_FRAMEWORKS" \
     -Xlinker -rpath -Xlinker "$CRISP_TEST_PRIVATE" \
     Crisp/Models/LGWebOSProtocol.swift \
+    Crisp/Models/LGWebOSSignedManifest.swift \
+    Crisp/Models/KeyboardShortcut.swift Crisp/Models/LGWebOSDevice.swift \
+    Crisp/Models/LGWakeOnLAN.swift Crisp/Models/LGWebOSPowerPolicy.swift \
     Crisp/Services/LGWebOSKeyStore.swift Crisp/Services/LGWebOSTransport.swift \
-    Crisp/Services/LGWebOSVolumeController.swift CrispTests/LGWebOS*Tests.swift \
+    Crisp/Services/LGWebOSVolumeController.swift Crisp/Services/LGWebOSDeviceControl.swift CrispTests/LGWebOS*Tests.swift \
     build/webos-tests-runner/main.swift -o build/webos-tests-runner/tests
 build/webos-tests-runner/tests

@@ -7,6 +7,9 @@ final class LGWebOSVolumeController: ObservableObject {
     @Published private(set) var ready = false
     @Published private(set) var confirmedVolume: Double?
     @Published private(set) var pairingWarning: String?
+    @Published var deviceState = LGWebOSDeviceState()
+    @Published var deviceError: String?
+    @Published var devicePreferences: LGWebOSDevicePreferences
     let host: String
     var onVolume: ((Double) -> Void)?
     var onReady: ((Bool) -> Void)?
@@ -14,6 +17,7 @@ final class LGWebOSVolumeController: ObservableObject {
     private let makeSocket: @MainActor () -> any LGWebOSSocket
     private let retryDelay: Duration
     private let confirmationTimeout: Duration
+    let sendWakePacket: @MainActor (String, String) throws -> Void
     private var socket: (any LGWebOSSocket)?
     private var connectionID: UUID?
     private var generation = UUID()
@@ -28,6 +32,9 @@ final class LGWebOSVolumeController: ObservableObject {
     private var muted = false
     private var commandID = 0
     private var cachedKey: String?
+    private var deviceRefresh: Task<Void, Never>?
+    private var calls: [String: CheckedContinuation<Data, Error>] = [:]
+    private var callTimeouts: [String: Task<Void, Never>] = [:]
 
     private enum ConnectionError: LocalizedError {
         case pairingRejected
@@ -42,11 +49,14 @@ final class LGWebOSVolumeController: ObservableObject {
 
     init(host: String, keyStore: any LGWebOSKeyStore = LGWebOSKeychainStore(),
          retryDelay: Duration = .seconds(5), confirmationTimeout: Duration = .seconds(2),
+         sendWakePacket: (@MainActor (String, String) throws -> Void)? = nil,
          makeSocket: (@MainActor () -> any LGWebOSSocket)? = nil) {
         self.host = host
+        self.devicePreferences = LGWebOSDevicePreferences.load(host: host)
         self.keyStore = keyStore
         self.retryDelay = retryDelay
         self.confirmationTimeout = confirmationTimeout
+        self.sendWakePacket = sendWakePacket ?? { try LGWakeOnLAN.send(mac: $0, host: $1) }
         self.makeSocket = makeSocket ?? { LGWebOSTransport(host: host) }
     }
 
@@ -88,6 +98,7 @@ final class LGWebOSVolumeController: ObservableObject {
                 }
                 guard self.isCurrent(generation) else { return }
                 self.cancelWrites()
+                self.failCalls()
                 self.setReady(false)
                 socket.close()
                 self.socket = nil
@@ -107,6 +118,7 @@ final class LGWebOSVolumeController: ObservableObject {
         keyTask?.cancel()
         keyTask = nil
         cancelWrites()
+        failCalls()
         socket?.close()
         socket = nil
         connectionID = nil
@@ -127,9 +139,14 @@ final class LGWebOSVolumeController: ObservableObject {
     }
 
     private func setReady(_ value: Bool) {
+        let becameReady = value && !ready
         ready = value
         if !value { confirmedVolume = nil }
         onReady?(value)
+        if !value { deviceRefresh?.cancel(); deviceRefresh = nil }
+        if becameReady && devicePreferences.extendedControls {
+            deviceRefresh = Task { [weak self] in await self?.refreshDeviceState() }
+        }
     }
 
     func pairAgain() {
@@ -187,13 +204,24 @@ final class LGWebOSVolumeController: ObservableObject {
             }
         }
         defer { heartbeat.cancel() }
-        try await send(LGWebOSProtocol.registration(key: cachedKey), on: socket)
+        try await send(LGWebOSProtocol.registration(key: cachedKey, extended: devicePreferences.extendedControls,
+                                                  settingsAccess: devicePreferences.signedSettingsAccess), on: socket)
         var registered = false
         while isCurrent(generation) {
             let data = try await socket.receive()
             guard isCurrent(generation), self.connectionID == connectionID else { throw CancellationError() }
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
             let payload = json["payload"] as? [String: Any] ?? [:]
+            if let id = json["id"] as? String, id.hasPrefix("device-") {
+                callTimeouts.removeValue(forKey: id)?.cancel()
+                if let call = calls.removeValue(forKey: id) {
+                    if json["type"] as? String == "error" || payload["returnValue"] as? Bool == false {
+                        let detail = json["error"] as? String ?? payload["errorText"] as? String ?? "TV request failed"
+                        call.resume(throwing: LGWebOSDeviceError(message: detail))
+                    } else { call.resume(returning: try JSONSerialization.data(withJSONObject: payload)) }
+                }
+                continue
+            }
             if json["type"] as? String == "error" || payload["returnValue"] as? Bool == false {
                 // Only registration rejection is terminal. Command/subscription failures
                 // reconnect with the existing key rather than asking for fresh pairing.
@@ -270,5 +298,41 @@ final class LGWebOSVolumeController: ObservableObject {
 
     private func send(_ message: [String: Any], on socket: any LGWebOSSocket) async throws {
         try await socket.send(JSONSerialization.data(withJSONObject: message))
+    }
+
+    func call(_ uri: String, payload: [String: Any] = [:], timeout: Duration = .seconds(4)) async throws -> Data {
+        guard ready, let socket else { throw URLError(.notConnectedToInternet) }
+        try Task.checkCancellation()
+        let id = "device-" + UUID().uuidString
+        let message = try JSONSerialization.data(withJSONObject: ["id": id, "type": "request", "uri": "ssap://" + uri,
+                                                                 "payload": payload])
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                calls[id] = continuation
+                callTimeouts[id] = Task { [weak self] in
+                    do { try await Task.sleep(for: timeout) } catch { return }
+                    self?.finishCall(id, error: URLError(.timedOut))
+                }
+                Task { [weak self] in
+                    do { try await socket.send(message) }
+                    catch { self?.finishCall(id, error: error) }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.finishCall(id, error: CancellationError()) }
+        }
+    }
+
+    private func finishCall(_ id: String, error: Error) {
+        callTimeouts.removeValue(forKey: id)?.cancel()
+        calls.removeValue(forKey: id)?.resume(throwing: error)
+    }
+
+    private func failCalls() {
+        for task in callTimeouts.values { task.cancel() }
+        callTimeouts.removeAll()
+        let pending = calls
+        calls.removeAll()
+        for call in pending.values { call.resume(throwing: URLError(.networkConnectionLost)) }
     }
 }

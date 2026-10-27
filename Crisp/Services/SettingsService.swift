@@ -187,6 +187,7 @@ final class SettingsService: ObservableObject, @unchecked Sendable {
     /// (Carbon refuses a second registration of the same combo), then `assign` gives it here.
     func assignStaticShortcut(_ shortcut: KeyboardShortcut?, assign: (KeyboardShortcut?) -> Void) {
         if let shortcut {
+            LGWebOSPowerService.shared.clearShortcuts(matching: shortcut)
             if hidpiShortcut?.sameKeys(as: shortcut) == true { hidpiShortcut = nil }
             if brightnessUpShortcut?.sameKeys(as: shortcut) == true { brightnessUpShortcut = nil }
             if brightnessDownShortcut?.sameKeys(as: shortcut) == true { brightnessDownShortcut = nil }

@@ -10,7 +10,7 @@ struct LGWebOSVolumeView: View {
     var body: some View {
         if !display.isBuiltin {
             VStack(alignment: .leading, spacing: 6) {
-                Text("LG webOS TV Volume").font(.body)
+                Text("LG webOS TV Controls").font(.body)
                 HStack {
                     TextField("TV IP address", text: $host)
                         .textFieldStyle(.roundedBorder)
@@ -25,6 +25,7 @@ struct LGWebOSVolumeView: View {
                 }
                 if let controller = service.networkControllers[display.displayUUID] {
                     LGWebOSConnectionStatus(controller: controller)
+                    LGWebOSDeviceView(controller: controller)
                     HStack {
                         Button("Pair Again") { controller.pairAgain() }
                         Button("Disconnect") {

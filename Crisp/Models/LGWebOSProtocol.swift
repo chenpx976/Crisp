@@ -16,13 +16,17 @@ enum LGWebOSProtocol {
         return bytes.map(String.init).joined(separator: ".")
     }
 
-    static func registration(key: String?) -> [String: Any] {
+    static func registration(key: String?, extended: Bool = false, settingsAccess: Bool = false) -> [String: Any] {
+        var permissions = ["CONTROL_AUDIO", "READ_AUDIO_VOLUME"]
+        if extended {
+            permissions += ["CONTROL_POWER", "READ_POWER_STATE", "READ_INPUT_DEVICE_LIST", "CONTROL_INPUT_TV",
+                            "LAUNCH", "READ_RUNNING_APPS", "READ_NETWORK_STATE", "CONTROL_DISPLAY", "CONTROL_TV_SCREEN", "READ_SETTINGS", "WRITE_SETTINGS"]
+        }
+        var manifest: [String: Any] = ["manifestVersion": 1, "appVersion": "1.0", "permissions": permissions]
+        if extended && settingsAccess { manifest.merge(LGWebOSSignedManifest.fields) { _, new in new } }
         var payload: [String: Any] = [
             "pairingType": "PROMPT", "forcePairing": false,
-            "manifest": [
-                "manifestVersion": 1, "appVersion": "1.0",
-                "permissions": ["CONTROL_AUDIO", "READ_AUDIO_VOLUME"]
-            ]
+            "manifest": manifest
         ]
         if let key { payload["client-key"] = key }
         return ["id": "register", "type": "register", "payload": payload]
